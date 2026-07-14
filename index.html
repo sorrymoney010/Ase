@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sovereign Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F0D0A; --panel:#17140F; --panel2:#1E1A13;
+    --line:rgba(212,162,78,.16);
+    --brass:#D4A24E; --brass-bright:#F0C87A;
+    --text:#EDE6D8; --muted:#8A8272;
+    --live:#6FBF73; --err:#C25B4E;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    display:flex; flex-direction:column;
+  }
+  /* ---------- Header ---------- */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#141109,var(--bg));
+  }
+  .brand{display:flex; align-items:baseline; gap:10px}
+  .brand h1{
+    font-family:'Unbounded',sans-serif; font-weight:700;
+    font-size:15px; letter-spacing:.14em; color:var(--brass-bright);
+    text-transform:uppercase;
+  }
+  .brand span{font-size:11px; color:var(--muted); letter-spacing:.08em}
+  .icon-btn{
+    background:none; border:1px solid var(--line); color:var(--brass);
+    border-radius:10px; padding:7px 12px; font-family:inherit;
+    font-size:12px; cursor:pointer; letter-spacing:.06em;
+  }
+  .icon-btn:hover{border-color:var(--brass); color:var(--brass-bright)}
+  .icon-btn:focus-visible{outline:2px solid var(--brass-bright); outline-offset:2px}
+
+  /* ---------- The Relay (provider chain) ---------- */
+  .relay{
+    display:flex; align-items:center; justify-content:center;
+    gap:0; padding:14px 12px 12px; border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  .node{display:flex; flex-direction:column; align-items:center; gap:5px; min-width:86px}
+  .node .dot{
+    width:11px; height:11px; border-radius:50%;
+    background:var(--muted); transition:all .3s;
+    box-shadow:0 0 0 0 transparent;
+  }
+  .node.ready .dot{background:var(--live)}
+  .node.active .dot{background:var(--brass-bright); box-shadow:0 0 12px 2px rgba(240,200,122,.55); animation:pulse 1s infinite}
+  .node.failed .dot{background:var(--err)}
+  .node.answered .dot{background:var(--brass); box-shadow:0 0 8px 1px rgba(212,162,78,.5)}
+  .node label{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+  .node.ready label,.node.active label,.node.answered label{color:var(--text)}
+  .wire{height:1px; width:34px; background:var(--line); margin-bottom:16px}
+  @keyframes pulse{50%{transform:scale(1.35)}}
+  @media (prefers-reduced-motion:reduce){.node.active .dot{animation:none}}
+
+  /* ---------- Chat ---------- */
+  main{flex:1; overflow-y:auto; padding:22px 16px; display:flex; flex-direction:column; gap:14px}
+  .msg{max-width:min(680px,88%); padding:12px 15px; border-radius:var(--radius); font-size:15px; line-height:1.55; white-space:pre-wrap; word-wrap:break-word}
+  .msg.user{align-self:flex-end; background:var(--panel2); border:1px solid var(--line); border-bottom-right-radius:4px}
+  .msg.bot{align-self:flex-start; background:var(--panel); border:1px solid var(--line); border-bottom-left-radius:4px}
+  .msg .via{display:block; margin-top:8px; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--brass)}
+  .msg.err{align-self:center; background:none; border:1px dashed var(--err); color:var(--err); font-size:13px}
+  .empty{
+    margin:auto; text-align:center; color:var(--muted); max-width:420px;
+  }
+  .empty h2{font-family:'Unbounded',sans-serif; font-size:13px; letter-spacing:.14em; color:var(--brass); margin-bottom:10px; text-transform:uppercase}
+  .empty p{font-size:13.5px; line-height:1.6}
+
+  /* ---------- Composer ---------- */
+  .composer{
+    display:flex; gap:10px; padding:14px 16px 18px; border-top:1px solid var(--line);
+    background:var(--panel);
+  }
+  .composer textarea{
+    flex:1; resize:none; background:var(--bg); color:var(--text);
+    border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+    font-family:inherit; font-size:15px; min-height:48px; max-height:140px;
+  }
+  .composer textarea:focus{outline:none; border-color:var(--brass)}
+  .send{
+    background:var(--brass); color:#171204; border:none; border-radius:12px;
+    padding:0 22px; font-family:'Unbounded',sans-serif; font-size:11px;
+    letter-spacing:.1em; cursor:pointer; font-weight:700; text-transform:uppercase;
+  }
+  .send:hover{background:var(--brass-bright)}
+  .send:disabled{background:var(--muted); cursor:wait}
+  .send:focus-visible{outline:2px solid var(--brass-bright); outline-offset:2px}
+
+  /* ---------- Settings drawer ---------- */
+  .drawer{
+    position:fixed; inset:0; background:rgba(10,8,5,.7); display:none;
+    justify-content:flex-end; z-index:20;
+  }
+  .drawer.open{display:flex}
+  .drawer-panel{
+    width:min(420px,100%); height:100%; background:var(--panel);
+    border-left:1px solid var(--line); padding:22px 20px 40px; overflow-y:auto;
+  }
+  .drawer-panel h2{font-family:'Unbounded',sans-serif; font-size:13px; letter-spacing:.14em; color:var(--brass-bright); text-transform:uppercase; margin-bottom:4px}
+  .drawer-panel .sub{font-size:12px; color:var(--muted); margin-bottom:20px; line-height:1.5}
+  fieldset{border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:16px}
+  legend{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--brass); padding:0 6px}
+  .field{margin-bottom:10px}
+  .field label{display:block; font-size:11px; color:var(--muted); margin-bottom:4px; letter-spacing:.05em}
+  .field input,.field textarea{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:9px 11px; font-family:inherit; font-size:13px;
+  }
+  .field input:focus,.field textarea:focus{outline:none; border-color:var(--brass)}
+  .drawer-actions{display:flex; gap:10px; margin-top:6px}
+  .drawer-actions button{flex:1}
+  .primary{background:var(--brass); color:#171204; border:none; border-radius:10px; padding:11px; font-family:inherit; font-weight:600; font-size:13px; cursor:pointer}
+  .primary:hover{background:var(--brass-bright)}
+  .note{font-size:11px; color:var(--muted); line-height:1.5; margin-top:14px}
+  .note b{color:var(--brass)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1 id="botTitle">Sovereign Chat</h1>
+    <span>your keys · your bot</span>
+  </div>
+  <button class="icon-btn" id="openSettings">⚙ Setup</button>
+</header>
+
+<!-- Signature element: the Relay — live fallback chain -->
+<div class="relay" aria-label="Provider fallback chain">
+  <div class="node" id="node-groq"><div class="dot"></div><label>Groq</label></div>
+  <div class="wire"></div>
+  <div class="node" id="node-gemini"><div class="dot"></div><label>Gemini</label></div>
+  <div class="wire"></div>
+  <div class="node" id="node-openrouter"><div class="dot"></div><label>OpenRouter</label></div>
+</div>
+
+<main id="chat">
+  <div class="empty" id="emptyState">
+    <h2>The relay is yours</h2>
+    <p>Tap <b>⚙ Setup</b>, paste at least one free API key, and start talking. Requests hit Groq first, fall to Gemini, then OpenRouter — so rate limits never stop the conversation.</p>
+  </div>
+</main>
+
+<div class="composer">
+  <textarea id="input" rows="1" placeholder="Say something…" aria-label="Message"></textarea>
+  <button class="send" id="sendBtn">Send</button>
+</div>
+
+<!-- Settings -->
+<div class="drawer" id="drawer">
+  <div class="drawer-panel">
+    <h2>Setup</h2>
+    <p class="sub">Keys live only in this browser tab's memory — nothing is sent anywhere except directly to each provider. If you refresh, paste them again (keep them safe in your notes app).</p>
+
+    <fieldset>
+      <legend>Identity</legend>
+      <div class="field"><label for="cfgName">Bot name</label><input id="cfgName" value="Sovereign Chat"></div>
+      <div class="field"><label for="cfgSystem">Personality / system prompt</label>
+        <textarea id="cfgSystem" rows="4">You are a sharp, direct AI assistant. Keep answers real and useful. No fluff.</textarea>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>1 · Groq (fastest)</legend>
+      <div class="field"><label for="groqKey">API key — console.groq.com/keys</label><input id="groqKey" type="password" placeholder="gsk_..."></div>
+      <div class="field"><label for="groqModel">Model</label><input id="groqModel" value="llama-3.3-70b-versatile"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2 · Google Gemini</legend>
+      <div class="field"><label for="gemKey">API key — aistudio.google.com/apikey</label><input id="gemKey" type="password" placeholder="AIza..."></div>
+      <div class="field"><label for="gemModel">Model</label><input id="gemModel" value="gemini-2.0-flash"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3 · OpenRouter (backup)</legend>
+      <div class="field"><label for="orKey">API key — openrouter.ai/keys</label><input id="orKey" type="password" placeholder="sk-or-..."></div>
+      <div class="field"><label for="orModel">Model (free-tier id)</label><input id="orModel" value="meta-llama/llama-3.3-70b-instruct:free"></div>
+    </fieldset>
+
+    <div class="drawer-actions">
+      <button class="primary" id="saveSettings">Save & close</button>
+    </div>
+    <p class="note"><b>Heads up:</b> model names change over time. If a provider starts failing, check its docs/model list and update the model field here — no code changes needed.</p>
+  </div>
+</div>
+
+<script>
+/* ================= State ================= */
+const state = {
+  botName: 'Sovereign Chat',
+  system: 'You are a sharp, direct AI assistant. Keep answers real and useful. No fluff.',
+  keys: { groq:'', gemini:'', openrouter:'' },
+  models:{ groq:'llama-3.3-70b-versatile', gemini:'gemini-2.0-flash', openrouter:'meta-llama/llama-3.3-70b-instruct:free' },
+  history: [] // {role:'user'|'assistant', content}
+};
+
+/* ================= UI refs ================= */
+const $ = id => document.getElementById(id);
+const chat = $('chat'), input = $('input'), sendBtn = $('sendBtn');
+
+/* ================= Relay visuals ================= */
+function setNode(name, cls){
+  const n = $('node-'+name);
+  n.classList.remove('ready','active','failed','answered');
+  if(cls) n.classList.add(cls);
+}
+function refreshRelay(){
+  ['groq','gemini','openrouter'].forEach(p=>{
+    setNode(p, state.keys[p] ? 'ready' : '');
+  });
+}
+
+/* ================= Settings ================= */
+$('openSettings').onclick = ()=> $('drawer').classList.add('open');
+$('drawer').addEventListener('click', e=>{ if(e.target===$('drawer')) $('drawer').classList.remove('open'); });
+$('saveSettings').onclick = ()=>{
+  state.botName = $('cfgName').value.trim() || 'Sovereign Chat';
+  state.system  = $('cfgSystem').value.trim();
+  state.keys.groq = $('groqKey').value.trim();
+  state.keys.gemini = $('gemKey').value.trim();
+  state.keys.openrouter = $('orKey').value.trim();
+  state.models.groq = $('groqModel').value.trim();
+  state.models.gemini = $('gemModel').value.trim();
+  state.models.openrouter = $('orModel').value.trim();
+  $('botTitle').textContent = state.botName;
+  document.title = state.botName;
+  refreshRelay();
+  $('drawer').classList.remove('open');
+};
+
+/* ================= Chat rendering ================= */
+function addMsg(role, text, via){
+  $('emptyState')?.remove();
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = text;
+  if(via){
+    const tag = document.createElement('span');
+    tag.className = 'via'; tag.textContent = 'via ' + via;
+    div.appendChild(tag);
+  }
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+function addError(text){
+  const div = document.createElement('div');
+  div.className = 'msg err'; div.textContent = text;
+  chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
+}
+
+/* ================= Provider calls ================= */
+async function callGroq(messages){
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.keys.groq},
+    body:JSON.stringify({model:state.models.groq, messages, max_tokens:1024})
+  });
+  if(!r.ok) throw new Error('Groq '+r.status);
+  const d = await r.json();
+  return d.choices[0].message.content;
+}
+
+async function callGemini(messages){
+  // Convert OpenAI-style history to Gemini format
+  const contents = messages.filter(m=>m.role!=='system').map(m=>({
+    role: m.role==='assistant' ? 'model' : 'user',
+    parts:[{text:m.content}]
+  }));
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/'
+            + encodeURIComponent(state.models.gemini)
+            + ':generateContent?key=' + encodeURIComponent(state.keys.gemini);
+  const r = await fetch(url,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      contents,
+      systemInstruction:{parts:[{text:state.system}]},
+      generationConfig:{maxOutputTokens:1024}
+    })
+  });
+  if(!r.ok) throw new Error('Gemini '+r.status);
+  const d = await r.json();
+  const parts = d.candidates?.[0]?.content?.parts || [];
+  const text = parts.map(p=>p.text||'').join('');
+  if(!text) throw new Error('Gemini empty response');
+  return text;
+}
+
+async function callOpenRouter(messages){
+  const r = await fetch('https://openrouter.ai/api/v1/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.keys.openrouter},
+    body:JSON.stringify({model:state.models.openrouter, messages, max_tokens:1024})
+  });
+  if(!r.ok) throw new Error('OpenRouter '+r.status);
+  const d = await r.json();
+  if(d.error) throw new Error('OpenRouter: '+(d.error.message||'error'));
+  return d.choices[0].message.content;
+}
+
+const providers = [
+  {id:'groq',       label:'Groq',       fn:callGroq},
+  {id:'gemini',     label:'Gemini',     fn:callGemini},
+  {id:'openrouter', label:'OpenRouter', fn:callOpenRouter},
+];
+
+/* ================= The fallback relay ================= */
+async function relay(messages){
+  const armed = providers.filter(p=>state.keys[p.id]);
+  if(!armed.length) throw new Error('No API keys set. Open ⚙ Setup and paste at least one key.');
+  let lastErr;
+  for(const p of armed){
+    setNode(p.id,'active');
+    try{
+      const answer = await p.fn(messages);
+      setNode(p.id,'answered');
+      return {answer, via:p.label};
+    }catch(e){
+      lastErr = e;
+      setNode(p.id,'failed');
+    }
+  }
+  throw new Error('All providers failed. Last error: '+(lastErr?.message||'unknown'));
+}
+
+/* ================= Send flow ================= */
+async function send(){
+  const text = input.value.trim();
+  if(!text || sendBtn.disabled) return;
+  input.value = '';
+  addMsg('user', text);
+  state.history.push({role:'user', content:text});
+  sendBtn.disabled = true;
+  const pending = addMsg('bot','…');
+  try{
+    const messages = [{role:'system', content:state.system}, ...state.history];
+    const {answer, via} = await relay(messages);
+    pending.remove();
+    addMsg('bot', answer, via);
+    state.history.push({role:'assistant', content:answer});
+    // keep memory light: cap history at last 30 turns
+    if(state.history.length > 30) state.history = state.history.slice(-30);
+  }catch(e){
+    pending.remove();
+    addError(e.message);
+  }finally{
+    sendBtn.disabled = false;
+    setTimeout(refreshRelay, 1800);
+    input.focus();
+  }
+}
+sendBtn.onclick = send;
+input.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+});
+
+refreshRelay();
+</script>
+</body>
+</html>
